@@ -46,6 +46,11 @@ float calibration_factor = 2125; //-7050 worked for my 440lb max scale setup
 float units;
 float ounces;
 
+const int calibration_button_up = 44;
+const int calibration_button_dn = 45;
+int upbuttonstate = 0;
+int dnbuttonstate = 0;
+
 void setup() {
   Serial.begin(9600);
   // set up the LCD's number of columns and rows:
@@ -90,6 +95,17 @@ void loop() {
   lcd.setCursor(0, 3);
   lcd.print("Calbr: ");
   lcd.print(calibration_factor);
+
+  //Check button states for calibration buttons
+  upbuttonstate = digitalRead(calibration_button_up);
+  dnbuttonstate = digitalRead(calibration_button_dn);
+  if(upbuttonstate == HIGH) {
+    calibration_factor += 0.1;
+  }
+  if(dnbuttonstate == HIGH) {
+    calibration_factor -= 0.1;
+  }
+
 
   if(Serial.available())
   {
