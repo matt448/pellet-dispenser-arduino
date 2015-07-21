@@ -31,16 +31,34 @@
  
 */
 
+#include "HX711.h"
 #include <LiquidCrystal.h>
+#include <Keypad.h>
+
+//Configure LCD screen pins
 LiquidCrystal lcd(51, 50, 49, 48, 47, 46);
 
-
-#include "HX711.h"
-
+//Configure HX711 pins
 #define DOUT 5
 #define CLK  6
-
 HX711 scale(DOUT, CLK);
+
+//Configure Keypad
+const byte ROWS = 4; //four rows
+const byte COLS = 3; //three columns
+char keys[ROWS][COLS] = {
+  {'1','2','3'},
+  {'4','5','6'},
+  {'7','8','9'},
+  {'*','0','#'}
+};
+byte rowPins[ROWS] = {42, 40, 38, 36}; //connect to the row pinouts of the keypad
+byte colPins[COLS] = {34, 32, 30}; //connect to the column pinouts of the keypad
+
+// Instantiate the keypad
+Keypad keypad = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
+
+
 
 float calibration_factor = 2125; //-7050 worked for my 440lb max scale setup
 float units;
@@ -51,18 +69,23 @@ const int calibration_button_dn = 45;
 int upbuttonstate = 0;
 int dnbuttonstate = 0;
 
+
 void setup() {
   Serial.begin(9600);
   // set up the LCD's number of columns and rows:
   lcd.begin(20, 4);
   lcd.setCursor(0, 0);
-  lcd.print("HX711 calibration");
+  lcd.print("Starting system");
+  lcd.setCursor(0, 2);
+  lcd.print("Remove all weight");
+  lcd.setCursor(0, 3);
+  lcd.print("from scale");
   Serial.println("HX711 calibration sketch");
   Serial.println("Remove all weight from scale");
   Serial.println("After readings begin, place known weight on scale");
   Serial.println("Press + or a to increase calibration factor");
   Serial.println("Press - or z to decrease calibration factor");
-
+  delay(500);
   scale.set_scale();
   scale.tare();	//Reset the scale to 0
 
@@ -72,47 +95,84 @@ void setup() {
 }
 
 void loop() {
+ scale.set_scale(calibration_factor); //Adjust to this calibration factor
+ char key = menu_page1();
+ 
+ if(key) {
+   Serial.print("Key pressed: ");
+   Serial.println(key);
+   if(key == '3') {
+       calibration_factor = calibrate_scale();
+       Serial.print("Main menu Key val: ");
+       Serial.println(key);
+       Serial.print("calib factor: ");
+       Serial.print(calibration_factor);
+   }//ifkey3
+ }//ifkey
 
-  scale.set_scale(calibration_factor); //Adjust to this calibration factor
-
-  Serial.print("Reading: ");
-  units = scale.get_units(), 10;
-  if (units < 0) {
-    units = 0.00;
-  }
-  ounces = units * 0.035274;
-  Serial.print(units);
-  Serial.print(" grams"); 
-  Serial.print(" calibration_factor: ");
-  Serial.print(calibration_factor);
-  Serial.println();
-  lcd.setCursor(0, 1);
-  lcd.print("Grams: ");
-  lcd.print(units);
-  lcd.setCursor(0, 2);
-  lcd.print("Ounce: ");
-  lcd.print(ounces);
-  lcd.setCursor(0, 3);
-  lcd.print("Calbr: ");
-  lcd.print(calibration_factor);
-
-  //Check button states for calibration buttons
-  upbuttonstate = digitalRead(calibration_button_up);
-  dnbuttonstate = digitalRead(calibration_button_dn);
-  if(upbuttonstate == HIGH) {
-    calibration_factor += 0.1;
-  }
-  if(dnbuttonstate == HIGH) {
-    calibration_factor -= 0.1;
-  }
+}//mainloop
 
 
-  if(Serial.available())
-  {
-    char temp = Serial.read();
-    if(temp == '+' || temp == 'a')
-      calibration_factor += 1;
-    else if(temp == '-' || temp == 'z')
-      calibration_factor -= 1;
-  }
+
+char menu_page1(){
+  lcd.setCursor(0,0);
+  lcd.print("1.Enter weight      ");
+  lcd.setCursor(0,1);
+  lcd.print("2.Calcualte weight  ");
+  lcd.setCursor(0,2);
+  lcd.print("3.Calibrate scale   ");
+  lcd.setCursor(0,3);
+  lcd.print("                    ");
+  char key = keypad.getKey();
+  return key;
 }
+
+
+float calibrate_scale(){
+  char key = ' ';
+  while(key != '*') {
+    Serial.print("Reading: ");
+    units = scale.get_units(), 10;
+    if (units < 0) {
+      units = 0.00;
+    }
+  
+    Serial.print(units);
+    ounces = units * 0.035274;
+    Serial.print(" grams"); 
+    Serial.print(" calibration_factor: ");
+    Serial.print(calibration_factor);
+    Serial.println();
+    lcd.setCursor(0, 0);
+    lcd.print("Calibrating. Exit=*");
+    lcd.setCursor(0, 1);
+    lcd.print("Grams: ");
+    lcd.print(units);
+    lcd.print("   ");
+    lcd.setCursor(0, 2);
+    lcd.print("Ounce: ");
+    lcd.print(ounces);
+    lcd.print("   ");
+    lcd.setCursor(0, 3);
+    lcd.print("Calbr: ");
+    lcd.print(calibration_factor);
+    lcd.print("   ");
+
+    //Check button states for calibration buttons
+    upbuttonstate = digitalRead(calibration_button_up);
+    dnbuttonstate = digitalRead(calibration_button_dn);
+    if(upbuttonstate == HIGH) {
+      calibration_factor += 0.1;
+    }
+    if(dnbuttonstate == HIGH) {
+      calibration_factor -= 0.1;
+    }
+    scale.set_scale(calibration_factor);
+    char key = keypad.getKey();
+    Serial.print("Calib Key val: ");
+    Serial.println(key);
+    if(key == '*') { break; }
+  }
+  return(calibration_factor);
+}
+  
